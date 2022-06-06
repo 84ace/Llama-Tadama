@@ -34,45 +34,41 @@ int oldBatteryLevel = 0;  // last battery level reading from analog input
 int tempVoltage;
 int battery = 0;
 int batteryLevel = 0;
-unsigned long patternInterval = 20 ; // time between steps in the pattern
+
+int interval=1000; //1s
+int battInterval=30000; //30s
+int sleepInterval=2700000; //45m
+// Tracks the time since last event fired
+unsigned long previousMillis=0;
+
+String _r, _g, _b, _m, _i = "0";
+int r, g, b, m, i = 0;
 unsigned long lastUpdate = 0 ; // for millis() when last update occoured
-unsigned long intervals [] = { 20, 20, 50, 100 } ; // speed for each pattern
 
 void measureBattery() {
-  for (int j = 0; j < 5; j++) {
+  for (int j = 0; j < 15; j++) {
       tempVoltage += analogRead(A1);
   }
-  battery = tempVoltage/5;
+  battery = tempVoltage/15;
   batteryLevel = map(battery, 3640, 3800, 0, 100);
   tempVoltage = 0;
   batteryLevelChar.setValue(batteryLevel);   // initial value for this characteristic
 }
 
 void updateBatteryLevel() {
-  //measureBattery();
+  measureBattery();
   if (batteryLevel != oldBatteryLevel) {      // if the battery level has changed
-    batteryLevelChar.setValue(batteryLevel);  // and update the battery level characteristic
-    if (batteryLevel > oldBatteryLevel) {
-      // battery is being charged
-      int brightnessLevel = map(batteryLevel, 3640, 4096, 0, 100);
-      strip.setBrightness(brightnessLevel); // 
-      rtt.print("Battery charging is now: "); // print it
-      rtt.println(batteryLevel);
-      rtt.print("Old Battery Level: "); // print it
-      rtt.println(oldBatteryLevel);
-      if (brightnessLevel < 97) {
-        colorWipe(strip.Color(0, 0, 255));
-      } else {
-        colorWipe(strip.Color(0, 255, 0));
-      }
-    }
-    else {
-      int brightnessLevel = map(battery, 3640, 3830, 0, 100);
-      strip.setBrightness(brightnessLevel); // 
-      rtt.print("Battery discharging: "); // print it
-      rtt.println(batteryLevel);
-      rtt.print("Old Battery Level: "); // print it
-      rtt.println(oldBatteryLevel);
+    // battery is being charged
+    int brightnessLevel = map(batteryLevel, 3640, 4096, 0, 100);
+    strip.setBrightness(brightnessLevel); // 
+    rtt.print("Battery at: "); // print it
+    rtt.println(batteryLevel);
+    if (brightnessLevel > 95) {
+      colorWipe(strip.Color(0, 0, 255));
+    } else if (brightnessLevel > 30){
+      colorWipe(strip.Color(0, 255, 0));
+    } else {
+      colorWipe(strip.Color(255, 0, 0));
     }
   }
   oldBatteryLevel = batteryLevel;
@@ -111,39 +107,23 @@ uint32_t Wheel(byte WheelPos) {
 }
 
 void rainbow(int wait) {
-  rtt.println(wait);
   for(long firstPixelHue = 0; firstPixelHue < 5*65536; firstPixelHue += 256) {
     for(int i=0; i<strip.numPixels(); i++) { 
       int pixelHue = firstPixelHue + (i * 65536L / strip.numPixels());
       strip.setPixelColor(i, strip.gamma32(strip.ColorHSV(pixelHue)));
     }
-    strip.show();
-    blePeripheral.poll();
     if (ledCharacteristic.written()) {
-      checkBLEUpdates();
-      rtt.println("Characteristic written...");
+      return;
     }
+    blePeripheral.poll();
+    strip.show();
     delay(wait);
   }
-      rainbow(wait);
+  rainbow(wait);
 }
 
 void checkBLEUpdates() {
   // update LED, either central has written to characteristic or button state has changed
-  rtt.print("Received app update bytes: ");
-  rtt.print(ledCharacteristic.value()[0]);
-  rtt.print(", ");
-  rtt.print(ledCharacteristic.value()[1]);
-  rtt.print(", ");
-  rtt.print(ledCharacteristic.value()[2]);
-  rtt.print(", ");
-  rtt.print(ledCharacteristic.value()[3]);
-  rtt.print(", ");
-  rtt.println(ledCharacteristic.value()[4]);
-
-  String _r, _g, _b, _m, _i = "0";
-  int r, g, b, m, i = 0;
-
   _r = ledCharacteristic.value()[0];
   _g = ledCharacteristic.value()[1];
   _b = ledCharacteristic.value()[2];
@@ -157,45 +137,20 @@ void checkBLEUpdates() {
   m = atof(_m.c_str());
 
   strip.setBrightness(i);
-  rtt.print("Setting NeoPixel brightness to:");
-  rtt.println(i);
 
   if (m == 0) {
     colorWipe(strip.Color(r, g, b));
-    rtt.print("Setting NeoPixel colour to:");
-    rtt.print(r);
-    rtt.print(", ");
-    rtt.print(g);
-    rtt.print(", ");
-    rtt.println(b);
   }
   else if (m == 1) {
-    rtt.println("Rainbow fast!");
     rainbow(1);
   }
   else if (m == 2) {
-    rtt.println("Rainbow slow!");
     rainbow(10);
-    }
-  // else if (m == 3) {
-  //   theaterChaseRainbow();
-  //   rtt.print("Rainbow chase!");
-  // }
-  // else if (m == 4) {
-  //   animatePixels(strip, r, g, b, 500);
-  //   rtt.print("Animate!");
-  // }
-  else {
-    rtt.println("No match! BLE payload issue?");
-  } 
+  }
 }
 
 void setup() {
   analogReadResolution(12);
-  rtt.println("Application running...");
-  //rtt.blockUpBufferFull();
-  //rtt.setTimeout(10000);  /* 5 minute timeout for entry */
-
    // Initialize NeoPixels.
   strip.begin();
   strip.setBrightness(5); // 
@@ -217,14 +172,32 @@ void setup() {
   blePeripheral.addAttribute(batteryLevelChar); // add the battery level characteristic
 
   // begin initialization
+  updateBatteryLevel();
   blePeripheral.begin();
 }
 
 
 void loop() {
   blePeripheral.poll();
-  measureBattery();
-  if (ledCharacteristic.written()) {
-    checkBLEUpdates();
-  }
+  unsigned long currentMillis = millis();
+   // How much time has passed, accounting for rollover with subtraction!
+   if ((unsigned long)(currentMillis - previousMillis) >= interval) {
+      // It's time to do something!
+      checkBLEUpdates();
+      // Use the snapshot to set track time until next event
+      previousMillis = currentMillis;
+   }
+
+   // How much time has passed, accounting for rollover with subtraction!
+   if ((unsigned long)(currentMillis - previousMillis) >= battInterval) {
+      // It's time to do something!
+      measureBattery();
+      // Use the snapshot to set track time until next event
+   }
+
+   if ((unsigned long)(currentMillis - previousMillis) >= sleepInterval) {
+      // It's time to do something!
+      strip.setBrightness(0);
+      // Use the snapshot to set track time until next event
+   }
 }
