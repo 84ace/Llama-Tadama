@@ -1,0 +1,8 @@
+{
+    "configuration": "softdevice=s132,lfclk=lfxo",
+    "board": "sandeepmistry:nRF5:Generic_nRF52832",
+    "programmer": "jlink",
+    "sketch": "firmware.ino",
+    "debugger": "jlink",
+    "output": "../build"
+}

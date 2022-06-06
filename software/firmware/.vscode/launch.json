@@ -1,0 +1,15 @@
+{
+  "configurations": [
+  {
+    "cwd": "/Users/acea/Documents/hardware/Llama-Tadama/software/firmware/",
+    "executable": "/Users/acea/Documents/hardware/Llama-Tadama/software/firmware/build/firmware.ino.elf",
+    "name": "Debug with JLink",
+    "request": "launch",
+    "type": "cortex-debug",
+    "device": "",
+    "runToEntryPoint": "main",
+    "showDevDebugOutput": "none",
+    "servertype": "jlink"
+  }
+  ]
+} 
